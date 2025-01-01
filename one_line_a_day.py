@@ -1,21 +1,27 @@
 import argparse
-import os
+import logging
+import shutil
 from datetime import date, datetime, timedelta
-from shutil import rmtree
+from pathlib import Path
 
-# argument parser
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
 parser = argparse.ArgumentParser(
-    description='Python script to generate a folder structure for one line a day.'
+    description=(
+        'Generate one file for each day of the year. '
+        'With a placeholder for daily journaling.'
+    )
 )
 parser.add_argument(
     '--path',
-    help='Define path where folder structure is generated',
-    type=str,
+    help='Path where files are created or modified',
+    type=Path,
     default='one_line_a_day',
 )
 parser.add_argument(
     '--years',
-    help='For how many years would you like to generate file entries?',
+    help='Amount of years added to the files',
     type=int,
     default=5,
 )
@@ -41,9 +47,11 @@ month_strings = [
 ]
 
 
-def create_tree(path, years, current_date, month_strings):
+def work_tree(
+    path: Path, num_years: int, current_date: datetime, month_strings: list[str]
+) -> None:
     """
-    Create the file tree according to present date
+    Either create or append to file tree according to present date
     - one_line_a_day
         - 01-January
             - 01-jan.md
@@ -52,31 +60,29 @@ def create_tree(path, years, current_date, month_strings):
         - 02-February
         - ...
     """
-
-    # present year
     year = current_date.year
     start_date = date(year, 1, 1)
-    end_date = date(year + years - 1, 12, 31)
-
-    # check for existing path
-    if os.path.exists(path):
-        rmtree(path)
-
-    # generate the path PATH and subfolders
-    os.mkdir(path)
-    os.chdir(path)
-    for folder in month_strings:
-        os.mkdir(folder)
-
+    end_date = date(year + num_years - 1, 12, 31)
     delta = timedelta(days=1)
+
+    if path.exists():
+        logger.info(f'{path} already exists. Create a backup.')
+        backup_path = path.parent / f'{path.parts[-1]}_backup'
+        shutil.copytree(path, backup_path, dirs_exist_ok=True)
+    else:
+        logger.info(f'Create tree at {path}.')
+        path.mkdir()
+        for folder in month_strings:
+            (path / folder).mkdir()
+
     while start_date <= end_date:
         m = start_date.month - 1  # counting from 0 (zero)
         d = start_date.strftime('%d')
         m_str = start_date.strftime('%b').lower()
         y = start_date.strftime('%Y')
 
-        # define formated strings
-        file_path = month_strings[m] + '/' + d + '-' + m_str + '.md'
+        file_name = d + '-' + m_str + '.md'
+        file_path = path / month_strings[m] / file_name
         header = '### ' + d + '-' + m_str + '-' + y + ': *loc*\n'
         placeholder = '<line>\n'
 
@@ -90,9 +96,7 @@ def create_tree(path, years, current_date, month_strings):
         # increment variable
         start_date += delta
 
-    return 'done'
-
 
 if __name__ == '__main__':
     current_date = datetime.now()
-    create_tree(PATH, YEARS, current_date, month_strings)
+    work_tree(PATH, YEARS, current_date, month_strings)
